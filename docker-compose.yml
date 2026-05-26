@@ -1,2 +1,37 @@
 services:
   # Os serviços serão adicionados aqui passo a passo
+
+  # ---------------------------------------------------------------------------
+  # Realtime layer (Arthur) — append only. Do NOT modify the db/backend/frontend
+  # blocks added by Henrique/Lorenzo above this comment.
+  # ---------------------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  winner-worker:
+    # Reuses the backend image (same Dockerfile at repo root that Henrique
+    # will add for the `backend` service). Only the entrypoint differs.
+    build: .
+    command: python -m app.realtime.winner
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://auction:auction@db:5432/auction}
+      WINNER_POLL_INTERVAL: "2"
+      WINNER_LOCK_TTL: "60"
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      # Uncomment once Henrique declares the `db` service with a healthcheck:
+      # db:
+      #   condition: service_healthy
+    restart: unless-stopped
