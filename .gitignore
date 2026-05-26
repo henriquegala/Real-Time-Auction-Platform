@@ -1,0 +1,20 @@
+# Ambientes Virtuais Python (Backend)
+venv/
+__pycache__/
+*.pyc
+
+# Dependências Node.js (Frontend / Realtime)
+node_modules/
+
+# Variáveis de Ambiente e Segurança
+.env
+*.pem
+*.key
+
+# Ficheiros de Sistema Operativo (Mac/Windows)
+.DS_Store
+Thumbs.db
+
+# Bases de Dados locais
+*.sqlite3
+*.db
