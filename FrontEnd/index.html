@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gravebidders | Leilões do Além</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo">Gravebidders</div>
+        <nav>
+            <ul>
+                <li><a href="#lotes">Lotes Atuais</a></li>
+                <li><a href="#arquivo">Arquivo de Espectros</a></li>
+                <li><a href="#regras">Manual de Licitação</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero-section">
+            
+            <div class="painel-leilao">
+                
+                <div class="seletor-lotes" style="margin-bottom: 1.5rem; text-align: left;">
+                    <label for="lista-lotes"><strong>Catálogo Espetral:</strong></label>
+                    <select id="lista-lotes">
+                    </select>
+                </div>
+
+                <h2 id="nome-lote">A carregar espetro...</h2>
+                 
+                <div class="preco-box">
+                    <strong>Lance Atual:</strong> <span id="preco-atual">€---</span>
+                </div>
+                
+                <div class="detalhes-box">
+                    <p><strong>Último a licitar:</strong> <span id="ultimo-licitante">---</span></p>
+                    <p><strong>Tempo Restante:</strong> <span id="tempo-restante">--</span></p>
+                </div>
+                
+                <div class="controlos">
+                    <button id="btn-iniciar" class="cta-button">Começar Leilão</button>
+                    <button id="btn-licitar" class="cta-button" disabled>Dar Lance</button>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script src="js/dados.js"></script>
+    <script src="js/LicitanteBot.js"></script>
+    <script src="js/Leilao.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
