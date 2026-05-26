@@ -1,18 +1,28 @@
 """JWT verification for WebSocket connections.
 
 Token is passed via query string: ws://host/ws/auctions/{id}?token=<jwt>.
-Reuses Henrique's JWT_SECRET env var (HS256).
+Reuses Henrique's JWT_SECRET env var (HS256, `sub` carries the user id).
 """
 from __future__ import annotations
 
+import jwt
 from fastapi import WebSocket
 
 from .protocol import CloseCode
 
 
 async def authenticate_ws(ws: WebSocket, secret: str) -> int | None:
-    """Return the authenticated user_id, or None after closing the socket.
+    """Verify the `token` query param. On failure close with 4401 and return None.
 
-    Implemented in Phase 2.
+    On success returns the integer user_id from the JWT `sub` claim.
     """
-    raise NotImplementedError("Phase 2")
+    token = ws.query_params.get("token")
+    if not token:
+        await ws.close(code=CloseCode.AUTH_FAILED)
+        return None
+    try:
+        payload = jwt.decode(token, secret, algorithms=["HS256"])
+        return int(payload["sub"])
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError):
+        await ws.close(code=CloseCode.AUTH_FAILED)
+        return None
