@@ -18,3 +18,6 @@ Thumbs.db
 # Bases de Dados locais
 *.sqlite3
 *.db
+
+# Project Statement file
+project02_en.md
