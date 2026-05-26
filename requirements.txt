@@ -1,0 +1,16 @@
+# --- Henrique's deps go above (auth, auctions, SQL models) ---
+
+# Realtime layer (Arthur)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+sqlalchemy>=2.0
+asyncpg>=0.29
+redis>=5.0
+PyJWT>=2.8
+
+# Tests only
+pytest>=8.0
+pytest-asyncio>=0.23
+fakeredis[lua]>=2.23
+websockets>=12
