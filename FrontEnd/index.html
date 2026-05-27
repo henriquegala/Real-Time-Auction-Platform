@@ -13,7 +13,7 @@
     </audio>
 
     <div id="menu-inicial" class="menu-inicial">
-        <button id="btn-entrar" class= "btn-scribble">Auction Time!</button>
+        <button id="btn-entrar" class=  "btn-scribble">Auction Time!</button>
     </div>
 
     <div id="conteudo-jogo" style="display: none;">
@@ -33,34 +33,41 @@
     </header>
 
     <main>
-        <section class="hero-section">
-            
-            <div class="painel-leilao">
-                
-                <div class="seletor-lotes" style="margin-bottom: 1.5rem; text-align: left;">
-                    <label for="lista-lotes"><strong>Catálogo Espetral:</strong></label>
-                    <select id="lista-lotes">
-                    </select>
-                </div>
+        <section id="ecra-cemiterio" class="cenario-cemiterio">
+        
+        <div class="cova-interativa" id="cova-0" style="top: 55%; left: 16%; width: 10%; height: 35%;">
+            <div class="tooltip-fantasma">Invocar</div>
+        </div>
+        
+        <div class="cova-interativa" id="cova-1" style="top: 55%; left: 59%; width: 10%; height: 35%;">
+            <div class="tooltip-fantasma">Invocar</div>
+        </div>
 
-                <h2 id="nome-lote">A carregar espetro...</h2>
-                 
-                <div class="preco-box">
-                    <strong>Lance Atual:</strong> <span id="preco-atual">€---</span>
-                </div>
-                
-                <div class="detalhes-box">
-                    <p><strong>Último a licitar:</strong> <span id="ultimo-licitante">---</span></p>
-                    <p><strong>Tempo Restante:</strong> <span id="tempo-restante">--</span></p>
-                </div>
-                
-                <div class="controlos">
-                    <button id="btn-iniciar" class="cta-button">Começar Leilão</button>
-                    <button id="btn-licitar" class="cta-button" disabled>Dar Lance</button>
-                </div>
-            </div>
+    </section>
 
-        </section>
+    <section id="ecra-dialogo" class="caixa-dialogo" style="display: none;">
+        <h3 id="nome-fantasma-chat" style="color: var(--ocher-yellow); font-size: 2rem; margin-top: 0;">Fantasma</h3>
+        <p id="texto-fantasma-chat" style="font-size: 1.2rem; line-height: 1.5;">"..."</p>
+        <button id="btn-ir-leilao" class="cta-button" style="margin-top: 1.5rem;">Desafiar para Leilão</button>
+    </section>
+    
+    <div id="ecra-leilao" class="painel-leilao" style="display: none;">
+        <h2 id="nome-lote">A carregar espetro...</h2>
+        
+        <div class="preco-box">
+            <strong>Lance Atual:</strong> <span id="preco-atual">€---</span>
+        </div>
+        
+        <div class="detalhes-box">
+            <p><strong>Último a licitar:</strong> <span id="ultimo-licitante">---</span></p>
+            <p><strong>Tempo Restante:</strong> <span id="tempo-restante">--</span></p>
+        </div>
+        
+        <div class="controlos">
+            <button id="btn-iniciar" class="cta-button">Começar Leilão</button>
+            <button id="btn-licitar" class="cta-button" disabled>Dar Lance</button>
+        </div>
+    </div>
     </main>
 
     <script src="js/dados.js"></script>
