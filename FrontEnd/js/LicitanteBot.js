@@ -29,6 +29,12 @@ class LicitanteBot {
                 if (leilaoAtual.ativo) {
                     const novoLance = leilaoAtual.valorAtual + fantasma.incremento;
                     console.log(`[Bot ${this.nome}] cobriu a aposta com €${novoLance}!`);
+                    
+                    // NOVO: Dispara o efeito dramático de áudio
+                    if (window.efeitoSustoBot) {
+                        window.efeitoSustoBot();
+                    }
+                    
                     leilaoAtual.processarLance(novoLance, this.nome);
                 }
             }, tempoReacao);

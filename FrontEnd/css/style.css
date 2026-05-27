@@ -68,9 +68,9 @@ nav a:hover {
 }
 
 .hero-section {
-    width: 100%;
-    height: 85vh;
-    background-image: url('../img/hero-bg.jpg');
+    width: 99%;
+    height: 90vh;
+    background-image: url('../img/background.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -144,4 +144,51 @@ nav a:hover {
     cursor: pointer;
     box-shadow: 2px 2px 0px #1A1A1A;
     outline: none;
+}
+
+.carteira {
+    font-size: 1.2rem;
+    font-weight: bold;
+    background-color: var(--ink-black);
+    color: var(--bg-cream);
+    padding: 0.5rem 1rem;
+    border: 2px solid var(--ink-black);
+    box-shadow: 4px 4px 0px var(--ocher-yellow); /* Um toque de ocre para destacar o ouro */
+}
+
+.menu-inicial {
+    position: fixed;
+    top: -40px; /* Começa fora da tela */
+    left: 0;
+    width: 99%;
+    height: 100vh;
+    background-color: var(--bg-cream);
+    background-image: url('../img/menu.jpg');
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end; /* Empurra o botão para baixo */
+    padding-bottom: 8%; /* Ajusta a altura do botão na tela */
+    z-index: 1000; /* Garante que fica por cima de tudo */
+}
+
+/* O botão vermelho estilo marcador */
+.btn-scribble {
+    background: transparent;
+    color: #fa2d2d; /* Vermelho Carmim */
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 5rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    transform: rotate(-4deg); /* Dá a inclinação da tua imagem */
+    transition: transform 0.1s, text-shadow 0.2s;
+    text-shadow: 3px 3px 0px rgba(0,0,0,0.3); /* Dá um ligeiro relevo à tinta */
+}
+
+.btn-scribble:hover {
+    transform: rotate(-2deg) scale(1.05);
+    text-shadow: 5px 5px 0px rgba(0,0,0,0.5);
 }

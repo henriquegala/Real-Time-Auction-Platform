@@ -1,6 +1,6 @@
 // js/Leilao.js
 class LeilaoGravebidders {
-    constructor(dadosFantasma) {
+    constructor(dadosFantasma, onFimLeilao) {
         this.fantasma = dadosFantasma;
         this.valorAtual = dadosFantasma.lanceInicial;
         this.ultimoLicitante = "A Casa (Gravebidders)";
@@ -8,6 +8,8 @@ class LeilaoGravebidders {
         this.ativo = false;
         this.timer = null;
         this.botAdversario = new LicitanteBot("Sr. Sombra");
+        // Guardamos a função callback que será chamada quando o leilão terminar
+        this.notificarFim = onFimLeilao;
     }
 
     iniciar() {
@@ -54,7 +56,10 @@ class LeilaoGravebidders {
         this.ativo = false;
         clearInterval(this.timer);
         this.atualizarInterface(); // Atualiza o ecrã uma última vez
-        alert(`FIM DO LEILÃO! Vendido a: ${this.ultimoLicitante} por €${this.valorAtual}`);
+        // Em vez de usar alert(), notificamos o controlador externo via callback
+        if (this.notificarFim) {
+            this.notificarFim(this.ultimoLicitante, this.valorAtual);
+        }
     }
     
     parar() {

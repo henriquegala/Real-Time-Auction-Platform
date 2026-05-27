@@ -7,14 +7,27 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <audio id="musica-fundo" loop>
+        <source src="audio/musica.mp3" type="audio/mpeg">
+        O teu navegador não suporta o elemento de áudio.
+    </audio>
 
+    <div id="menu-inicial" class="menu-inicial">
+        <button id="btn-entrar" class= "btn-scribble">Auction Time!</button>
+    </div>
+
+    <div id="conteudo-jogo" style="display: none;">
+    
     <header>
         <div class="logo">Gravebidders</div>
         <nav>
             <ul>
                 <li><a href="#lotes">Lotes Atuais</a></li>
                 <li><a href="#arquivo">Arquivo de Espectros</a></li>
-                <li><a href="#regras">Manual de Licitação</a></li>
+        
+        <div class="carteira">
+            Fundos: <span id="saldo-jogador">€2500</span>
+        </div>
             </ul>
         </nav>
     </header>
