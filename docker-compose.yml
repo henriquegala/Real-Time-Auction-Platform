@@ -1,2 +1,61 @@
+version: '3.8'
+
 services:
-  # Os serviços serão adicionados aqui passo a passo
+  # --- FRONTEND (Sua Camada) ---
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: auction_frontend
+    ports:
+      - "80:80"
+    restart: always
+
+  # --- BANCO DE DADOS PERSISTENTE (Para Henrique) ---
+  db:
+    image: postgres:15-alpine
+    container_name: auction_db
+    restart: always
+    environment:
+      POSTGRES_USER: leilao_user
+      POSTGRES_PASSWORD: leilao_password
+      POSTGRES_DB: leilao_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # --- REDIS PUB/SUB (Para Arthur) ---
+  redis:
+    image: redis:7-alpine
+    container_name: auction_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # --- BACKEND API & WEBSOCKET (Esqueleto para Henrique/Arthur) ---
+  # Nota: Quando Henrique e Arthur estiverem prontos, basta descomentar este bloco 
+  # e configurar o build do backend deles.
+  #
+  # backend:
+  #   build:
+  #     context: ./backend
+  #   container_name: auction_backend
+  #   restart: always
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - DATABASE_URL=postgresql://leilao_user:leilao_password@db:5432/leilao_db
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - JWT_SECRET=sua_chave_secreta_aqui
+  #   depends_on:
+  #     - db
+  #     - redis
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
