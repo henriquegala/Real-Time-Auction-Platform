@@ -1,6 +1,91 @@
-version: '3.8'
+networks:
+  auction-net:
+    driver: bridge
+
+volumes:
+  db-data:
+    driver: local
 
 services:
+
+  # --- BANCO DE DADOS (Henrique) ---
+  db:
+    image: postgres:16-alpine
+    container_name: auction_db
+    environment:
+      POSTGRES_USER: lss_user
+      POSTGRES_PASSWORD: lss_secure_password
+      POSTGRES_DB: auction_db
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - auction-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lss_user -d auction_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # --- REDIS PUB/SUB (Arthur) ---
+  redis:
+    image: redis:7-alpine
+    container_name: auction_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - auction-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # --- BACKEND API (Henrique) ---
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: auction_backend
+    environment:
+      - DATABASE_URL=postgresql://lss_user:lss_secure_password@db:5432/auction_db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - auction-net
+    restart: unless-stopped
+
+  # --- WORKER DE TEMPO REAL (Arthur) ---
+  winner-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: auction_winner_worker
+    command: python -m app.realtime.winner
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://lss_user:lss_secure_password@db:5432/auction_db
+      WINNER_POLL_INTERVAL: "2"
+      WINNER_LOCK_TTL: "60"
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - auction-net
+    restart: unless-stopped
+
   # --- FRONTEND (Sua Camada) ---
   frontend:
     build:
@@ -9,53 +94,10 @@ services:
     container_name: auction_frontend
     ports:
       - "80:80"
-    restart: always
-
-  # --- BANCO DE DADOS PERSISTENTE (Para Henrique) ---
-  db:
-    image: postgres:15-alpine
-    container_name: auction_db
-    restart: always
-    environment:
-      POSTGRES_USER: leilao_user
-      POSTGRES_PASSWORD: leilao_password
-      POSTGRES_DB: leilao_db
-    ports:
-      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  # --- REDIS PUB/SUB (Para Arthur) ---
-  redis:
-    image: redis:7-alpine
-    container_name: auction_redis
+      - ./frontend:/usr/share/nginx/html:ro  # Permite atualização em tempo real sem rebuild
+    depends_on:
+      - backend
+    networks:
+      - auction-net
     restart: always
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-
-  # --- BACKEND API & WEBSOCKET (Esqueleto para Henrique/Arthur) ---
-  # Nota: Quando Henrique e Arthur estiverem prontos, basta descomentar este bloco 
-  # e configurar o build do backend deles.
-  #
-  # backend:
-  #   build:
-  #     context: ./backend
-  #   container_name: auction_backend
-  #   restart: always
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - DATABASE_URL=postgresql://leilao_user:leilao_password@db:5432/leilao_db
-  #     - REDIS_URL=redis://redis:6379/0
-  #     - JWT_SECRET=sua_chave_secreta_aqui
-  #   depends_on:
-  #     - db
-  #     - redis
-
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
