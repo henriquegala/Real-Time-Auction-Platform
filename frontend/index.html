@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma de Leilão Real-Time</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+
+    <!-- Header Geral -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold">Leilão ao Vivo</h1>
+        <div id="user-info" class="hidden flex items-center gap-4">
+            <span id="username-display" class="font-semibold"></span>
+            <button onclick="logout()" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm transition">Sair</button>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 max-w-4xl">
+
+        <!-- 1. TELA DE LOGIN / CADASTRO -->
+        <section id="login-section" class="max-w-md mx-auto my-12 bg-white p-6 rounded-lg shadow-md">
+            
+            <!-- Abas de navegação (Login vs Cadastro) -->
+            <div class="flex border-b mb-6">
+                <button id="tab-login" onclick="toggleAuthMode('login')" class="w-1/2 pb-2 text-center font-bold border-b-2 border-blue-600 text-blue-600">
+                    Entrar
+                </button>
+                <button id="tab-register" onclick="toggleAuthMode('register')" class="w-1/2 pb-2 text-center font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                    Cadastrar
+                </button>
+            </div>
+
+            <!-- Formulário de Login -->
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="username">Usuário</label>
+                    <input type="text" id="username" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="password">Senha</label>
+                    <input type="password" id="password" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">
+                    Entrar
+                </button>
+            </form>
+
+            <!-- Formulário de Cadastro (Inicia oculto) -->
+            <form id="register-form" onsubmit="handleRegister(event)" class="hidden">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="reg-username">Escolha um Usuário</label>
+                    <input type="text" id="reg-username" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="reg-password">Escolha uma Senha</label>
+                    <input type="password" id="reg-password" placeholder="Mínimo 6 caracteres" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition">
+                    Criar Conta
+                </button>
+            </form>
+        </section>
+
+        <!-- 2. PAINEL DE LEILÕES (DASHBOARD) -->
+        <section id="dashboard-section" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Leilões Ativos</h2>
+                <button onclick="toggleModal(true)" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition">
+                    + Criar Leilão
+                </button>
+            </div>
+
+            <!-- Lista de Leilões -->
+            <div id="auctions-list" class="grid gap-4 md:grid-cols-2">
+                <!-- Inserido dinamicamente via JS -->
+            </div>
+        </section>
+
+        <!-- 3. DETALHE DO LEILÃO E LANCES AO VIVO -->
+        <section id="detail-section" class="hidden bg-white p-6 rounded-lg shadow-md">
+            <button onclick="backToDashboard()" class="text-blue-600 hover:underline mb-4 inline-block">&larr; Voltar para a lista</button>
+            
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Informações do Leilão -->
+                <div>
+                    <h2 id="auction-title" class="text-2xl font-bold text-gray-800 mb-2">Item do Leilão</h2>
+                    <p id="auction-desc" class="text-gray-600 mb-4">Descrição do item.</p>
+                    <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                        <p class="text-sm text-gray-500">Preço Atual</p>
+                        <p id="auction-current-price" class="text-3xl font-extrabold text-green-600">R$ 0,00</p>
+                    </div>
+                    <p class="text-sm text-gray-500">Termina em: <span id="auction-time" class="font-semibold text-gray-800">--:--:--</span></p>
+
+                    <!-- Formulário de Lance -->
+                    <form id="bid-form" onsubmit="handlePlaceBid(event)" class="mt-6">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="bid-amount">Seu Lance (R$)</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="bid-amount" step="0.01" required class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-lg transition">
+                                Enviar Lance
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Histórico de Lances (Tempo Real) -->
+                <div class="border-t md:border-t-0 md:border-l pt-6 md:pt-0 md:pl-6 flex flex-col h-80">
+                    <h3 class="text-lg font-bold text-gray-800 mb-3">Histórico de Lances</h3>
+                    <div id="bids-log" class="flex-1 overflow-y-auto bg-gray-50 p-3 rounded-lg border text-sm space-y-2">
+                        <!-- Inserido dinamicamente via WebSocket/API -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MODAL PARA CRIAR LEILÃO -->
+        <div id="create-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
+                <h2 class="text-xl font-bold mb-4 text-gray-800">Criar Novo Leilão</h2>
+                <form id="create-auction-form" onsubmit="handleCreateAuction(event)">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="new-title">Nome do Item</label>
+                        <input type="text" id="new-title" required class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="new-desc">Descrição</label>
+                        <textarea id="new-desc" required class="w-full px-3 py-2 border rounded-lg"></textarea>
+                    </div>
+                    <div class="mb-4 flex gap-4">
+                        <div class="w-1/2">
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="new-price">Preço Inicial (R$)</label>
+                            <input type="number" id="new-price" step="0.01" required class="w-full px-3 py-2 border rounded-lg">
+                        </div>
+                        <div class="w-1/2">
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="new-endtime">Término</label>
+                            <input type="datetime-local" id="new-endtime" required class="w-full px-3 py-2 border rounded-lg">
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-6">
+                        <button type="button" onclick="toggleModal(false)" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Criar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Arquivo JS da Aplicação -->
+    <script src="app.js"></script>
+</body>
+</html>
