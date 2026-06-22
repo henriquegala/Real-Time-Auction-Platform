@@ -15,7 +15,9 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-LUA_PATH = Path(__file__).resolve().parents[2] / "app" / "realtime" / "lua" / "bid.lua"
+LUA_PATH = (
+    Path(__file__).resolve().parents[2] / "backend" / "app" / "realtime" / "lua" / "bid.lua"
+)
 
 
 @pytest.fixture(scope="session")

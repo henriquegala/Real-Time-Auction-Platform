@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# The realtime package now ships inside the backend image, so it lives at
+# backend/app/. Put backend/ on sys.path so `import app.realtime...` resolves.
+pythonpath = ["backend"]
 markers = [
     "integration: requires a running redis + db + backend stack (env-gated)",
     "redis: hits a real redis instead of fakeredis",

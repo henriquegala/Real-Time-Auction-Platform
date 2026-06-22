@@ -1,39 +1,97 @@
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-import json
 import logging
 import os
 from typing import List
-from fastapi import FastAPI, HTTPException, Depends, status, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 import redis.asyncio as aioredis
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import schemas
+import auth as auth_module
 from database import get_db_cursor
 from auth import hash_password, verify_password, create_access_token, decode_access_token
+
+# Real-time + concurrency layer (Arthur). The WebSocket endpoint, atomic Lua
+# bid handler and winner declaration all live here and are the canonical bid
+# path — there is intentionally no REST "place bid" endpoint.
+from app.realtime.manager import ConnectionManager
+from app.realtime.routes import router as realtime_router
+from app.realtime.bids import load_bid_script, pubsub_loop
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://lss_user:lss_secure_password@db:5432/auction_db"
+)
+
+# Single async Redis client, shared by the REST handlers and the realtime layer.
+redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
+
+
+def _async_db_url(url: str) -> str:
+    """Coerce a libpq/psycopg2 URL into the asyncpg form SQLAlchemy needs.
+
+    The sync REST handlers use psycopg2 (`postgresql://`); the realtime layer
+    needs an async engine (`postgresql+asyncpg://`). One env var drives both.
+    """
+    for prefix in ("postgresql+asyncpg://", ):
+        if url.startswith(prefix):
+            return url
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+asyncpg://" + url[len(prefix):]
+    return url
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Wire the realtime layer onto app.state and run the Pub/Sub fan-out task."""
+    engine = create_async_engine(_async_db_url(DATABASE_URL), pool_pre_ping=True)
+    app.state.db_engine = engine
+    app.state.db_session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    app.state.redis = redis_client
+    app.state.ws_manager = ConnectionManager()
+    # Sign and verify with the exact same secret /api/auth/login uses.
+    app.state.jwt_secret = auth_module.SECRET_KEY
+    app.state.bid_script_sha = await load_bid_script(redis_client)
+
+    pubsub_task = asyncio.create_task(pubsub_loop(app))
+    try:
+        yield
+    finally:
+        pubsub_task.cancel()
+        try:
+            await pubsub_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        await redis_client.aclose()
+        await engine.dispose()
+
+
 app = FastAPI(
     title="Real-Time Auction Platform API",
     description="Backend API de suporte para leilões e gestão de concorrência.",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
-
-redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
+# Mount the WebSocket endpoint (/ws/auctions/{id}) from the realtime layer.
+app.include_router(realtime_router)
 
 @app.get("/api/health")
 async def health_check():
@@ -169,8 +227,8 @@ async def create_auction(
         )
         new_auction = cursor.fetchone()
 
-    await redis_client.set(f"auction:{new_auction[0]}:highest_bid", str(auction_data.starting_price))
-
+    # Redis state (current bid, leader, ends_at, closed) is seeded lazily by the
+    # realtime layer's warm_cache() on the first WebSocket connection.
     logger.info(f"Leilão ID {new_auction[0]} criado pelo Utilizador ID {current_user.id}.")
     return schemas.AuctionResponse(
         id=new_auction[0],
@@ -233,8 +291,8 @@ async def get_auction_details(auction_id: int):
             detail="Leilão não encontrado na base de dados."
         )
 
-    cached_highest = await redis_client.get(f"auction:{auction_id}:highest_bid")
-    price = float(cached_highest) if cached_highest else float(db_auction[4])
+    cached_current = await redis_client.get(f"auction:{auction_id}:current")
+    price = float(cached_current) if cached_current else float(db_auction[4])
 
     return schemas.AuctionResponse(
         id=db_auction[0],
@@ -247,116 +305,7 @@ async def get_auction_details(auction_id: int):
         created_at=db_auction[7]
     )
 
-@app.post("/api/auctions/{auction_id}/bids", response_model=schemas.BidResponse)
-async def place_bid(
-    auction_id: int,
-    bid_data: schemas.BidCreate,
-    current_user: schemas.UserResponse = Depends(get_current_user)
-):
-    """
-    Submete uma nova licitação concorrente.
-    Garante atomicidade e prevenção de "double winners" através de Optimistic Locking no Redis.
-    """
-    with get_db_cursor() as cursor:
-        cursor.execute("SELECT creator_id, end_time, is_active, starting_price FROM auctions WHERE id = %s;", (auction_id,))
-        auction = cursor.fetchone()
-        
-    if not auction:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Leilão não encontrado.")
-        
-    creator_id, end_time, is_active, starting_price = auction
-    
-    if current_user.id == creator_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Não pode licitar no seu próprio leilão.")
-
-    if not is_active or datetime.now(timezone.utc) >= end_time:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Este leilão já se encontra encerrado.")
-
-    redis_key = f"auction:{auction_id}:highest_bid"
-    
-    async with redis_client.pipeline() as pipe:
-        try:
-            await pipe.watch(redis_key)
-            
-            current_highest = await pipe.get(redis_key)
-            current_limit = float(current_highest) if current_highest else float(starting_price)
-            
-            if bid_data.amount <= current_limit:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, 
-                    detail=f"A sua licitação deve ser superior a {current_limit}."
-                )
-                
-            pipe.multi()
-            pipe.set(redis_key, str(bid_data.amount))
-            await pipe.execute()
-            
-        except aioredis.WatchError:
-            logger.warning(f" Race Condition detetada no Leilão ID {auction_id}. Licitação de {bid_data.amount} rejeitada.")
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="A sua licitação foi rejeitada porque outro utilizador efetuou uma oferta superior primeiro. Tente novamente."
-            )
-
-    with get_db_cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO bids (auction_id, bidder_id, amount)
-            VALUES (%s, %s, %s)
-            RETURNING id, auction_id, bidder_id, amount, created_at;
-            """,
-            (auction_id, current_user.id, bid_data.amount)
-        )
-        new_bid = cursor.fetchone()
-
-    response_bid = schemas.BidResponse(
-        id=new_bid[0],
-        auction_id=new_bid[1],
-        user_id=new_bid[2],
-        amount=float(new_bid[3]),
-        created_at=new_bid[4]
-    )
-
-    broadcast_message = {
-        "event": "new_bid",
-        "auction_id": auction_id,
-        "amount": response_bid.amount,
-        "username": current_user.username,
-        "timestamp": response_bid.created_at.isoformat()
-    }
-    await redis_client.publish(f"auction:{auction_id}:events", json.dumps(broadcast_message))
-    
-    return response_bid
-
-@app.websocket("/ws/auctions/{auction_id}")
-async def websocket_auction_endpoint(websocket: WebSocket, auction_id: int):
-    """
-    WebSocket Canal Bidirecional em tempo real para atualizações de licitações.
-    Lê do Redis Pub/Sub de forma assíncrona e envia para todos os visualizadores [13, 14].
-    """
-    await websocket.accept()
-    
-    pubsub = redis_client.pubsub()
-    await pubsub.subscribe(f"auction:{auction_id}:events")
-    
-    logger.info(f"Cliente WebSocket ligado ao Leilão ID {auction_id}.")
-    
-    try:
-        while True:
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-            if message:
-                await websocket.send_text(message["data"])
-            
-            await asyncio.sleep(0.01)
-            
-    except WebSocketDisconnect:
-        logger.info(f"Cliente WebSocket desconectou-se do Leilão ID {auction_id}.")
-    except Exception as e:
-        logger.error(f"Erro no canal WebSocket do Leilão ID {auction_id}: {e}")
-    finally:
-        await pubsub.unsubscribe(f"auction:{auction_id}:events")
-        await pubsub.close()
-        try:
-            await websocket.close()
-        except Exception:
-            pass
+# Bids are NOT placed over REST. The live bid path is the WebSocket endpoint
+# /ws/auctions/{id} (app.realtime.routes), which runs the atomic Lua script,
+# persists to SQL and broadcasts via Redis Pub/Sub. See NOTES_FOR_LORENZO.md
+# for the client message protocol.

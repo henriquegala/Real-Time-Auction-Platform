@@ -242,13 +242,14 @@ async function enterAuction(auctionId) {
 function connectWebSocket(auctionId) {
     cleanupConnection();
 
-    // Endereço de websocket apontando para a rota do Henrique no Nginx
-    const wsUrl = `${WS_BASE_URL}/ws/auctions/${auctionId}`;
+    // WebSocket em tempo real (rota da camada realtime do Arthur). O token JWT
+    // é obrigatório e vai na query string — o servidor fecha com 4401 sem ele.
+    const wsUrl = `${WS_BASE_URL}/ws/auctions/${auctionId}?token=${encodeURIComponent(token)}`;
     activeWebSocket = new WebSocket(wsUrl);
 
     activeWebSocket.onopen = () => {
         console.log("Conectado ao canal de tempo real do leilão.");
-        // Envia ping preventivo a cada 30 segundos
+        // Envia ping preventivo a cada 30 segundos (timeout de inatividade = 60s)
         pingInterval = setInterval(() => {
             if (activeWebSocket.readyState === WebSocket.OPEN) {
                 activeWebSocket.send(JSON.stringify({ type: "ping" }));
@@ -258,50 +259,61 @@ function connectWebSocket(auctionId) {
 
     activeWebSocket.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        const eventType = msg.event || msg.type;
+        const eventType = msg.type;
+        const priceEl = document.getElementById("auction-current-price");
 
-        // Trata os eventos conforme Henrique ou Arthur estruturaram
-        if (eventType === "new_bid" || eventType === "bid_accepted") {
+        if (eventType === "auction_state") {
+            // Primeiro frame: estado inicial do leilão.
+            priceEl.innerText = `R$ ${parseFloat(msg.current_bid).toFixed(2)}`;
+        } else if (eventType === "bid_accepted") {
             const acceptedAmount = parseFloat(msg.amount);
-            document.getElementById("auction-current-price").innerText = `R$ ${acceptedAmount.toFixed(2)}`;
-            addBidToLog(msg.username || "Participante", acceptedAmount, msg.timestamp || new Date().toISOString());
+            priceEl.innerText = `R$ ${acceptedAmount.toFixed(2)}`;
+            addBidToLog(msg.bidder_name || "Participante", acceptedAmount, msg.at || new Date().toISOString());
+        } else if (eventType === "bid_rejected") {
+            const reasons = {
+                too_low: "O seu lance tem de ser superior ao valor atual.",
+                auction_closed: "Este leilão já se encontra encerrado.",
+                self_bid: "Não pode licitar no seu próprio leilão.",
+                not_authenticated: "Sessão inválida. Faça login novamente."
+            };
+            alert(reasons[msg.reason] || "Lance rejeitado.");
         } else if (eventType === "auction_closed") {
             handleAuctionFinished(msg.winner_id, msg.winning_amount);
         }
+        // "pong" é ignorado (apenas mantém a ligação viva).
     };
 
-    activeWebSocket.onclose = () => {
+    activeWebSocket.onclose = (event) => {
         cleanupConnection();
+        if (event.code === 4401) {
+            alert("Sessão inválida ou expirada. Faça login novamente.");
+            logout();
+        } else if (event.code === 4404) {
+            alert("Leilão não encontrado.");
+            backToDashboard();
+        } else if (event.code === 4408) {
+            console.warn("Ligação encerrada por inatividade.");
+        }
     };
 }
 
-async function handlePlaceBid(event) {
+function handlePlaceBid(event) {
     event.preventDefault();
     const amountInput = document.getElementById("bid-amount");
     const amount = parseFloat(amountInput.value);
 
     if (isNaN(amount) || amount <= 0) return;
 
-    try {
-        // Henrique implementou a rota REST POST de lances, que sincroniza com o Redis Pub/Sub de forma segura
-        const response = await fetch(`${API_BASE_URL}/auctions/${currentAuctionId}/bids`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({ amount: amount })
-        });
-
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.detail || "Erro ao registrar lance.");
-        }
-
-        amountInput.value = "";
-    } catch (error) {
-        alert(error.message);
+    if (!activeWebSocket || activeWebSocket.readyState !== WebSocket.OPEN) {
+        alert("Ligação em tempo real indisponível. Tente reentrar no leilão.");
+        return;
     }
+
+    // O lance é enviado pelo WebSocket. O servidor valida atomicamente (Lua),
+    // persiste em SQL e difunde via Redis Pub/Sub. Enviamos como string para
+    // evitar imprecisão de vírgula flutuante (ver NOTES_FOR_LORENZO.md).
+    activeWebSocket.send(JSON.stringify({ type: "place_bid", amount: String(amount) }));
+    amountInput.value = "";
 }
 
 function handleAuctionFinished(winnerId, winningAmount) {

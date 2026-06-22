@@ -51,6 +51,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://lss_user:lss_secure_password@db:5432/auction_db
       - REDIS_URL=redis://redis:6379/0
+      # Must match the winner-worker / any extra replica so WS tokens verify.
+      - JWT_SECRET_KEY=lss_secure_shared_jwt_secret_2026
     volumes:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000

@@ -30,21 +30,22 @@ class AuctionRow:
 async def fetch_auction(session_factory: async_sessionmaker, auction_id: int) -> AuctionRow | None:
     """Read auction + current leader/highest bid in one transaction.
 
-    Expects tables:
-      auctions(id, item, owner_id, start_price, end_time)
-      bids(id, auction_id, user_id, amount, created_at)
+    Maps Henrique's schema onto the realtime layer's vocabulary:
+      auctions(id, title->item, creator_id->owner_id, starting_price->start_price, end_time)
+      bids(id, auction_id, bidder_id->user_id, amount, created_at)
     """
     async with session_factory() as session:
         row = (
             await session.execute(
                 text(
                     """
-                    SELECT a.id, a.item, a.owner_id, a.start_price, a.end_time,
-                           COALESCE(b.amount, a.start_price) AS current_bid,
-                           b.user_id AS leader_user_id
+                    SELECT a.id, a.title AS item, a.creator_id AS owner_id,
+                           a.starting_price AS start_price, a.end_time,
+                           COALESCE(b.amount, a.starting_price) AS current_bid,
+                           b.bidder_id AS leader_user_id
                     FROM auctions a
                     LEFT JOIN LATERAL (
-                        SELECT amount, user_id
+                        SELECT amount, bidder_id
                         FROM bids
                         WHERE auction_id = a.id
                         ORDER BY amount DESC, id DESC
@@ -81,7 +82,7 @@ async def insert_bid(
         await session.execute(
             text(
                 """
-                INSERT INTO bids (auction_id, user_id, amount, created_at)
+                INSERT INTO bids (auction_id, bidder_id, amount, created_at)
                 VALUES (:aid, :uid, :amt, :ts)
                 """
             ),

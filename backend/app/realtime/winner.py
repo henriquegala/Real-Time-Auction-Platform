@@ -81,7 +81,7 @@ async def _final_state_from_db(
             await session.execute(
                 text(
                     """
-                    SELECT user_id, amount FROM bids
+                    SELECT bidder_id, amount FROM bids
                     WHERE auction_id = :aid
                     ORDER BY amount DESC, id DESC
                     LIMIT 1
@@ -92,7 +92,7 @@ async def _final_state_from_db(
         ).first()
     if row is None:
         return None, None
-    return row.user_id, Decimal(row.amount)
+    return row.bidder_id, Decimal(row.amount)
 
 
 async def _persist_winner(
@@ -107,7 +107,7 @@ async def _persist_winner(
             text(
                 """
                 UPDATE auctions
-                SET winner_id = :wid, closed_at = :ts
+                SET winner_id = :wid, closed_at = :ts, is_active = FALSE
                 WHERE id = :aid AND closed_at IS NULL
                 """
             ),
