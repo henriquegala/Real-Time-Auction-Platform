@@ -108,7 +108,7 @@ authenticated WebSocket per auction.
 
 ```
 .
-├── docker-compose.yml          # 5-service orchestration
+├── compose.yml                 # 5-service orchestration
 ├── backend/
 │   ├── Dockerfile
 │   ├── requirements.txt
